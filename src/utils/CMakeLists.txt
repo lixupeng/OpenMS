@@ -74,9 +74,13 @@ add_dependencies(UTILS ${UTILS_executables})
 include_directories(SYSTEM ${SuperHirn_INCLUDE_DIRECTORIES})
 target_link_libraries(FeatureFinderSuperHirn SuperHirn)
 
-# OpenSwathWorkflow requires linking against boost and tcmalloc
+# OpenSwathWorkflow requires linking against tbb, tcmalloc
 include_directories(SYSTEM ${TBB_INCLUDE_DIRECTORY})
-#target_link_libraries(OpenSwathWorkflow tcmalloc_minimal)
+find_library(TCMALLOC tcmalloc_minimal)
+if(TCMALLOC)
+  target_link_libraries(OpenSwathWorkflow tcmalloc_minimal)
+  message("-- Linking OpenSwathWorkflow against tcmalloc")
+endif(TCMALLOC)
 
 ## export the list of UTILS tools into CACHE
 set(UTILS_TOOLS ${UTILS_executables}
