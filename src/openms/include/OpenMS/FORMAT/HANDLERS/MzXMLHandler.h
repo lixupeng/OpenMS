@@ -181,11 +181,26 @@ protected:
       */
       void doPopulateSpectraWithData_(SpectrumData & spectrum_data);
 
-      void populateSpectraWithData_();
-
       /// data processing auxiliary variable
       std::vector< boost::shared_ptr< DataProcessing> > data_processing_;
 
+      /**
+      @brief Populate all spectra on the stack with data from input
+
+      Will populate all spectra on the current work stack with data (using
+      multiple threads if available) and append them to the result.
+
+      Using producer-consumer parallel model
+      */
+      boost::thread *decoder_p, *consumer_p;
+      SafeQueue<SpectrumData> spec_queue;
+      SafeQueue<SpectrumType> consume_queue;
+      int thread_count;
+      long spec_count;
+      bool finish;
+
+      void decoder_thread();
+      void consumer_thread();
 
 private:
       /// Not implemented
@@ -232,24 +247,6 @@ private:
       static const XMLCh* s_deisotoped_;
       static const XMLCh* s_chargedeconvoluted_;
     };
-
-    /**
-    @brief Populate all spectra on the stack with data from input
-
-    Will populate all spectra on the current work stack with data (using
-    multiple threads if available) and append them to the result.
-
-    Using producer-consumer parallel model
-    */
-    boost::thread *decoder_p, *consumer_p;
-    SafeQueue<SpectrumData> spec_queue;
-    SafeQueue<SpectrumType> consume_queue;
-    int thread_count;
-    long spec_count;
-    bool finish;
-
-    void decoder_thread();
-    void consumer_thread();
 
   } // namespace Internal
 
