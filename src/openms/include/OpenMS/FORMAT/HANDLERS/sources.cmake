@@ -17,6 +17,7 @@ MzMLSqliteHandler.h
 MzMLSqliteSwathHandler.h
 MzQuantMLHandler.h
 MzXMLHandler.h
+MzXMLHandlerHelper.h
 PTMXMLHandler.h
 ParamXMLHandler.h
 ToolDescriptionHandler.h

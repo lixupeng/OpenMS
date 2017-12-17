@@ -99,7 +99,12 @@ namespace OpenMS
       spec_write_counter_(1),
       consumer_(NULL),
       scan_count_(0),
-      logger_(logger)
+      logger_(logger),
+      spec_queue(options_.getMaxDataPoolSize()),
+      consume_queue(options_.getMaxDataPoolSize()),
+      thread_count(0),
+      spec_count(0),
+      finish(false)
     {
       init_();
     }
@@ -115,7 +120,12 @@ namespace OpenMS
       spec_write_counter_(1),
       consumer_(NULL),
       scan_count_(0),
-      logger_(logger)
+      logger_(logger),
+      spec_queue(options_.getMaxDataPoolSize()),
+      consume_queue(options_.getMaxDataPoolSize()),
+      thread_count(0),
+      spec_count(0),
+      finish(false)
     {
       init_();
     }
@@ -180,11 +190,11 @@ namespace OpenMS
       else if (tag == "peaks")
       {
         //precision
-        spectrum_data_.back().precision_ = "32";
-        optionalAttributeAsString_(spectrum_data_.back().precision_, attributes, s_precision_);
-        if (spectrum_data_.back().precision_ != "32" && spectrum_data_.back().precision_ != "64")
+        spectrum_data_.precision_ = "32";
+        optionalAttributeAsString_(spectrum_data_.precision_, attributes, s_precision_);
+        if (spectrum_data_.precision_ != "32" && spectrum_data_.precision_ != "64")
         {
-          error(LOAD, String("Invalid precision '") + spectrum_data_.back().precision_ + "' in element 'peaks'");
+          error(LOAD, String("Invalid precision '") + spectrum_data_.precision_ + "' in element 'peaks'");
         }
         //byte order
         String byte_order = "network";
@@ -201,21 +211,21 @@ namespace OpenMS
           error(LOAD, String("Invalid or missing pair order '") + pair_order + "' in element 'peaks'. Must be 'm/z-int'!");
         }
         //compressionType
-        spectrum_data_.back().compressionType_ = "none";
-        optionalAttributeAsString_(spectrum_data_.back().compressionType_, attributes, s_compressionType_);
-        if (spectrum_data_.back().compressionType_ != "none" && spectrum_data_.back().compressionType_ != "zlib")
+        spectrum_data_.compressionType_ = "none";
+        optionalAttributeAsString_(spectrum_data_.compressionType_, attributes, s_compressionType_);
+        if (spectrum_data_.compressionType_ != "none" && spectrum_data_.compressionType_ != "zlib")
         {
-          error(LOAD, String("Invalid compression type ") + spectrum_data_.back().compressionType_ + "in elements 'peaks'. Must be 'none' or 'zlib'! ");
+          error(LOAD, String("Invalid compression type ") + spectrum_data_.compressionType_ + "in elements 'peaks'. Must be 'none' or 'zlib'! ");
         }
       }
       else if (tag == "precursorMz")
       {
         //add new precursor
-        spectrum_data_.back().spectrum.getPrecursors().push_back(Precursor());
+        spectrum_data_.spectrum.getPrecursors().push_back(Precursor());
         //intensity
         try
         {
-          spectrum_data_.back().spectrum.getPrecursors().back().setIntensity(attributeAsDouble_(attributes, s_precursorintensity_));
+          spectrum_data_.spectrum.getPrecursors().back().setIntensity(attributeAsDouble_(attributes, s_precursorintensity_));
         }
         catch (Exception::ParseError& /*e*/)
         {
@@ -225,13 +235,13 @@ namespace OpenMS
         Int charge = 0;
         if (optionalAttributeAsInt_(charge, attributes, s_precursorcharge_))
         {
-          spectrum_data_.back().spectrum.getPrecursors().back().setCharge(charge);
+          spectrum_data_.spectrum.getPrecursors().back().setCharge(charge);
         }
         //window bounds (here only the width is stored in both fields - this is corrected when we parse the m/z position)
         double window = 0.0;
         if (optionalAttributeAsDouble_(window, attributes, s_windowwideness_))
         {
-          spectrum_data_.back().spectrum.getPrecursors().back().setIsolationWindowLowerOffset(window);
+          spectrum_data_.spectrum.getPrecursors().back().setIsolationWindowLowerOffset(window);
         }
       }
       else if (tag == "scan")
@@ -290,16 +300,16 @@ namespace OpenMS
         }
 
         // Add a new spectrum, initialize and set MS level and RT
-        spectrum_data_.resize(spectrum_data_.size() + 1);
-        spectrum_data_.back().peak_count_ = 0;
+        spectrum_data_ = SpectrumData();
+        spectrum_data_.peak_count_ = 0;
 
-        spectrum_data_.back().spectrum.setMSLevel(ms_level);
-        spectrum_data_.back().spectrum.setRT(retention_time);
-        spectrum_data_.back().spectrum.setNativeID(String("scan=") + attributeAsString_(attributes, s_num_));
+        spectrum_data_.spectrum.setMSLevel(ms_level);
+        spectrum_data_.spectrum.setRT(retention_time);
+        spectrum_data_.spectrum.setNativeID(String("scan=") + attributeAsString_(attributes, s_num_));
         //peak count == twice the scan size
-        spectrum_data_.back().peak_count_ = attributeAsInt_(attributes, s_peakscount_);
-        spectrum_data_.back().spectrum.reserve(spectrum_data_.back().peak_count_ / 2 + 1);
-        spectrum_data_.back().spectrum.setDataProcessing(data_processing_);
+        spectrum_data_.peak_count_ = attributeAsInt_(attributes, s_peakscount_);
+        spectrum_data_.spectrum.reserve(spectrum_data_.peak_count_ / 2 + 1);
+        spectrum_data_.spectrum.setDataProcessing(data_processing_);
 
         //centroided, chargeDeconvoluted, deisotoped, collisionEnergy are ignored
 
@@ -309,19 +319,19 @@ namespace OpenMS
         optionalAttributeAsDouble_(window.end, attributes, s_endmz_);
         if (window.begin != 0.0 || window.end != 0.0)
         {
-          spectrum_data_.back().spectrum.getInstrumentSettings().getScanWindows().push_back(window);
+          spectrum_data_.spectrum.getInstrumentSettings().getScanWindows().push_back(window);
         }
 
         String polarity = "any";
         optionalAttributeAsString_(polarity, attributes, s_polarity_);
-        spectrum_data_.back().spectrum.getInstrumentSettings().setPolarity((IonSource::Polarity) cvStringToEnum_(0, polarity, "polarity"));
+        spectrum_data_.spectrum.getInstrumentSettings().setPolarity((IonSource::Polarity) cvStringToEnum_(0, polarity, "polarity"));
 
         // Filter string (see CV term MS:1000512 in mzML)
         String filterLine = "";
         optionalAttributeAsString_(filterLine, attributes, s_filterline_);
         if (!filterLine.empty())
         {
-          spectrum_data_.back().spectrum.setMetaValue("filter string", filterLine);
+          spectrum_data_.spectrum.setMetaValue("filter string", filterLine);
         }
 
         String type = "";
@@ -332,53 +342,53 @@ namespace OpenMS
         }
         else if (type == "zoom")
         {
-          spectrum_data_.back().spectrum.getInstrumentSettings().setZoomScan(true);
-          spectrum_data_.back().spectrum.getInstrumentSettings().setScanMode(InstrumentSettings::MASSSPECTRUM);
+          spectrum_data_.spectrum.getInstrumentSettings().setZoomScan(true);
+          spectrum_data_.spectrum.getInstrumentSettings().setScanMode(InstrumentSettings::MASSSPECTRUM);
         }
         else if (type == "Full")
         {
           if (ms_level > 1)
-            spectrum_data_.back().spectrum.getInstrumentSettings().setScanMode(InstrumentSettings::MSNSPECTRUM);
+            spectrum_data_.spectrum.getInstrumentSettings().setScanMode(InstrumentSettings::MSNSPECTRUM);
           else
-            spectrum_data_.back().spectrum.getInstrumentSettings().setScanMode(InstrumentSettings::MASSSPECTRUM);
+            spectrum_data_.spectrum.getInstrumentSettings().setScanMode(InstrumentSettings::MASSSPECTRUM);
         }
         else if (type == "SIM")
         {
-          spectrum_data_.back().spectrum.getInstrumentSettings().setScanMode(InstrumentSettings::SIM);
+          spectrum_data_.spectrum.getInstrumentSettings().setScanMode(InstrumentSettings::SIM);
         }
         else if (type == "SRM" || type == "MRM")
         {
-          spectrum_data_.back().spectrum.getInstrumentSettings().setScanMode(InstrumentSettings::SRM);
+          spectrum_data_.spectrum.getInstrumentSettings().setScanMode(InstrumentSettings::SRM);
         }
         else if (type == "CRM")
         {
-          spectrum_data_.back().spectrum.getInstrumentSettings().setScanMode(InstrumentSettings::CRM);
+          spectrum_data_.spectrum.getInstrumentSettings().setScanMode(InstrumentSettings::CRM);
         }
         else if (type == "Q1")
         {
-          spectrum_data_.back().spectrum.getInstrumentSettings().setScanMode(InstrumentSettings::MASSSPECTRUM);
+          spectrum_data_.spectrum.getInstrumentSettings().setScanMode(InstrumentSettings::MASSSPECTRUM);
         }
         else if (type == "Q3")
         {
-          spectrum_data_.back().spectrum.getInstrumentSettings().setScanMode(InstrumentSettings::MASSSPECTRUM);
+          spectrum_data_.spectrum.getInstrumentSettings().setScanMode(InstrumentSettings::MASSSPECTRUM);
         }
         else if (type == "EMS") //Non-standard type: Enhanced MS (ABI - Sashimi converter)
         {
-          spectrum_data_.back().spectrum.getInstrumentSettings().setScanMode(InstrumentSettings::MASSSPECTRUM);
+          spectrum_data_.spectrum.getInstrumentSettings().setScanMode(InstrumentSettings::MASSSPECTRUM);
         }
         else if (type == "EPI") //Non-standard type: Enhanced Product Ion (ABI - Sashimi converter)
         {
-          spectrum_data_.back().spectrum.getInstrumentSettings().setScanMode(InstrumentSettings::MASSSPECTRUM);
-          spectrum_data_.back().spectrum.setMSLevel(2);
+          spectrum_data_.spectrum.getInstrumentSettings().setScanMode(InstrumentSettings::MASSSPECTRUM);
+          spectrum_data_.spectrum.setMSLevel(2);
         }
         else if (type == "ER") // Non-standard type: Enhanced Resolution (ABI - Sashimi converter)
         {
-          spectrum_data_.back().spectrum.getInstrumentSettings().setZoomScan(true);
-          spectrum_data_.back().spectrum.getInstrumentSettings().setScanMode(InstrumentSettings::MASSSPECTRUM);
+          spectrum_data_.spectrum.getInstrumentSettings().setZoomScan(true);
+          spectrum_data_.spectrum.getInstrumentSettings().setScanMode(InstrumentSettings::MASSSPECTRUM);
         }
         else
         {
-          spectrum_data_.back().spectrum.getInstrumentSettings().setScanMode(InstrumentSettings::MASSSPECTRUM);
+          spectrum_data_.spectrum.getInstrumentSettings().setScanMode(InstrumentSettings::MASSSPECTRUM);
           warning(LOAD, String("Unknown scan mode '") + type + "'. Assuming full scan");
         }
 
@@ -482,7 +492,7 @@ namespace OpenMS
         }
         else if (parent_tag == "scan")
         {
-          spectrum_data_.back().spectrum.setMetaValue(name, value);
+          spectrum_data_.spectrum.setMetaValue(name, value);
         }
         else
         {
@@ -511,7 +521,7 @@ namespace OpenMS
 
         //std::cout << " -- End -- " << sm_.convert(qname) << " -- " << "\n";
 
-        static const XMLCh* s_mzxml = xercesc::XMLString::transcode("mzXML");
+      static const XMLCh* s_mzxml = xercesc::XMLString::transcode("mzXML");
       static const XMLCh* s_scan = xercesc::XMLString::transcode("scan");
 
       open_tags_.pop_back();
@@ -519,7 +529,21 @@ namespace OpenMS
       if (equal_(qname, s_mzxml))
       {
         // Flush the remaining data
-        populateSpectraWithData_();
+        while (spec_count > 0);
+
+        finish = true;
+        SpectrumType s;
+        SpectrumData d;
+        consume_queue.push(s);
+        int tc;
+#ifdef _OPENMP
+#pragma omp critical(counter)
+#endif
+        tc = thread_count;
+        for (int i = 0; i < tc; ++i) spec_queue.push(d);
+
+        decoder_p->join();
+        consumer_p->join();
 
         // End of mzXML
         logger_.endProgress();
@@ -531,10 +555,12 @@ namespace OpenMS
         nesting_level_--;
         OPENMS_PRECONDITION(nesting_level_ >= 0, "Nesting level needs to be zero or more")
 
-          if (nesting_level_ == 0 && spectrum_data_.size() >= options_.getMaxDataPoolSize())
-          {
-          populateSpectraWithData_();
-          }
+#ifdef _OPENMP
+#pragma omp critical(counter)
+#endif
+        spec_count++;
+
+        spec_queue.push(spectrum_data_);
       }
       //std::cout << " -- End -- " << "\n";
     }
@@ -551,7 +577,7 @@ namespace OpenMS
         if (options_.getFillData())
         {
           // Since we convert a Base64 string here, it can only contain plain ASCII
-          sm_.appendASCII(chars, length, spectrum_data_.back().char_rest_);
+          sm_.appendASCII(chars, length, spectrum_data_.char_rest_);
         }
       }
       else if (open_tags_.back() == "offset" || open_tags_.back() == "indexOffset" || open_tags_.back() == "sha1")
@@ -563,13 +589,13 @@ namespace OpenMS
         String transcoded_chars = sm_.convert(chars);
         double mz_pos = asDouble_(transcoded_chars);
         //precursor m/z
-        spectrum_data_.back().spectrum.getPrecursors().back().setMZ(mz_pos);
+        spectrum_data_.spectrum.getPrecursors().back().setMZ(mz_pos);
         //update window bounds - center them around the m/z pos
-        double window_width = spectrum_data_.back().spectrum.getPrecursors().back().getIsolationWindowLowerOffset();
+        double window_width = spectrum_data_.spectrum.getPrecursors().back().getIsolationWindowLowerOffset();
         if (window_width != 0.0)
         {
-          spectrum_data_.back().spectrum.getPrecursors().back().setIsolationWindowLowerOffset(0.5 * window_width);
-          spectrum_data_.back().spectrum.getPrecursors().back().setIsolationWindowUpperOffset(0.5 * window_width);
+          spectrum_data_.spectrum.getPrecursors().back().setIsolationWindowLowerOffset(0.5 * window_width);
+          spectrum_data_.spectrum.getPrecursors().back().setIsolationWindowUpperOffset(0.5 * window_width);
         }
       }
       else if (open_tags_.back() == "comment")
@@ -588,7 +614,7 @@ namespace OpenMS
         }
         else if (parent_tag == "scan")
         {
-          spectrum_data_.back().spectrum.setComment(transcoded_chars);
+          spectrum_data_.spectrum.setComment(transcoded_chars);
         }
         else if (transcoded_chars.trim() != "")
         {
@@ -1218,63 +1244,6 @@ namespace OpenMS
       }
     }
 
-    void MzXMLHandler::populateSpectraWithData_()
-    {
-
-      // Whether spectrum should be populated with data
-      if (options_.getFillData())
-      {
-        size_t errCount = 0;
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
-        for (SignedSize i = 0; i < (SignedSize)spectrum_data_.size(); i++)
-        {
-          // parallel exception catching and re-throwing business
-          if (!errCount) // no need to parse further if already an error was encountered
-          {
-            try
-            {
-              doPopulateSpectraWithData_(spectrum_data_[i]);
-              if (options_.getSortSpectraByMZ() && !spectrum_data_[i].spectrum.isSorted())
-              {
-                spectrum_data_[i].spectrum.sortByPosition();
-              }
-            }
-            catch (...)
-            {
-              #pragma omp critical(HandleException)
-              ++errCount;
-            }
-          }
-        }
-        if (errCount != 0)
-        {
-          throw Exception::ParseError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, file_, "Error during parsing of binary data.");
-        }
-      }
-
-      // Append all spectra
-      for (Size i = 0; i < spectrum_data_.size(); i++)
-      {
-        if (consumer_ != NULL)
-        {
-          consumer_->consumeSpectrum(spectrum_data_[i].spectrum);
-          if (options_.getAlwaysAppendData())
-          {
-            exp_->addSpectrum(spectrum_data_[i].spectrum);
-          }
-        }
-        else
-        {
-          exp_->addSpectrum(spectrum_data_[i].spectrum);
-        }
-      }
-
-      // Delete batch
-      spectrum_data_.clear();
-    }
-
     void MzXMLHandler::init_()
     {
       cv_terms_.resize(6);
@@ -1298,6 +1267,81 @@ namespace OpenMS
       //Resolution method
       String(";FWHM;TenPercentValley;Baseline").split(';', cv_terms_[5]);
       cv_terms_[5].resize(MassAnalyzer::SIZE_OF_RESOLUTIONMETHOD);
+
+      //Start producers & consumers
+      decoder_p = new boost::thread(boost::bind(&MzXMLHandler::decoder_thread, this));
+      consumer_p = new boost::thread(boost::bind(&MzXMLHandler::consumer_thread, this));
+    }
+
+    void MzXMLHandler::decoder_thread()
+    {
+      SpectrumData spect;
+      size_t errCount = 0;
+#ifdef _OPENMP
+#pragma omp parallel private(spect)
+#endif
+      {
+        #ifdef _OPENMP
+        #pragma omp critical(counter)
+        #endif
+        thread_count++;
+        while (true)
+        {
+          spec_queue.pop(spect);
+          if (finish) break;
+          // Whether spectrum should be populated with data
+          if (options_.getFillData())
+          {
+            try
+            {
+              doPopulateSpectraWithData_(spect);
+              if (options_.getSortSpectraByMZ() && !spect.spectrum.isSorted())
+              {
+                spect.spectrum.sortByPosition();
+              }
+            }
+            catch (...)
+            {
+              #ifdef _OPENMP
+              #pragma omp critical(HandleException)
+              #endif
+              ++errCount;
+            }
+          }
+          consume_queue.push(spect.spectrum);
+        }
+      }
+      if (errCount != 0)
+      {
+        throw Exception::ParseError(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, file_, "Error during parsing of binary data.");
+      }
+    }
+
+    void MzXMLHandler::consumer_thread()
+    {
+      // Append all spectra
+      SpectrumType spect;
+      while (true)
+      {
+        consume_queue.pop(spect);
+        if (finish) break;
+        if (consumer_ != NULL)
+        {
+          consumer_->consumeSpectrum(spect);
+          if (options_.getAlwaysAppendData())
+          {
+            exp_->addSpectrum(spect);
+          }
+        }
+        else
+        {
+          exp_->addSpectrum(spect);
+        }
+        #ifdef _OPENMP
+        #pragma omp critical(counter)
+        #endif
+        spec_count--;
+      }
     }
   }
 }

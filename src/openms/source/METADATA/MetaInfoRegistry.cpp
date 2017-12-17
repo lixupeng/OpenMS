@@ -2,7 +2,7 @@
 //                   OpenMS -- Open-Source Mass Spectrometry
 // --------------------------------------------------------------------------
 // Copyright The OpenMS Team -- Eberhard Karls University Tuebingen,
-// ETH Zurich, and Freie Universitaet Berlin 2002-2017.
+// ETH Zurich, and Freie Universitaet Berlin 2002-2016.
 //
 // This software is released under a three-clause BSD license:
 //  * Redistributions of source code must retain the above copyright
@@ -36,290 +36,212 @@
 
 #include <OpenMS/METADATA/MetaInfoRegistry.h>
 
-using namespace std;
-
 namespace OpenMS
 {
 
-  MetaInfoRegistry::MetaInfoRegistry() :
-    next_index_(1024), name_to_index_(), index_to_name_(), index_to_description_(), index_to_unit_()
-  {
-    name_to_index_["isotopic_range"] = 1;
-    index_to_name_[1] = "isotopic_range";
-    index_to_description_[1] = "consecutive numbering of the peaks in an isotope pattern. 0 is the monoisotopic peak";
-    index_to_unit_[1] = "";
-
-    name_to_index_["cluster_id"] = 2;
-    index_to_name_[2] = "cluster_id";
-    index_to_description_[2] = "consecutive numbering of isotope clusters in a spectrum";
-    index_to_unit_[2] = "";
-
-    name_to_index_["label"] = 3;
-    index_to_name_[3] = "label";
-    index_to_description_[3] = "label e.g. shown in visualization";
-    index_to_unit_[3] = "";
-
-    name_to_index_["icon"] = 4;
-    index_to_name_[4] = "icon";
-    index_to_description_[4] = "icon shown in visualization";
-    index_to_unit_[4] = "";
-
-    name_to_index_["color"] = 5;
-    index_to_name_[5] = "color";
-    index_to_description_[5] = "color used for visualization e.g. #FF00FF for purple";
-    index_to_unit_[5] = "";
-
-    name_to_index_["RT"] = 6;
-    index_to_name_[6] = "RT";
-    index_to_description_[6] = "the retention time of an identification";
-    index_to_unit_[6] = "";
-
-    name_to_index_["MZ"] = 7;
-    index_to_name_[7] = "MZ";
-    index_to_description_[7] = "the MZ of an identification";
-    index_to_unit_[7] = "";
-
-    name_to_index_["predicted_RT"] = 8;
-    index_to_name_[8] = "predicted_RT";
-    index_to_description_[8] = "the predicted retention time of a peptide hit";
-    index_to_unit_[8] = "";
-
-    name_to_index_["predicted_RT_p_value"] = 9;
-    index_to_name_[9] = "predicted_RT_p_value";
-    index_to_description_[9] = "the predicted RT p-value of a peptide hit";
-    index_to_unit_[9] = "";
-
-    name_to_index_["spectrum_reference"] = 10;
-    index_to_name_[10] = "spectrum_reference";
-    index_to_description_[10] = "Reference to a spectrum or feature number";
-    index_to_unit_[10] = "";
-
-    name_to_index_["ID"] = 11;
-    index_to_name_[11] = "ID";
-    index_to_description_[11] = "Some type of identifier";
-    index_to_unit_[11] = "";
-
-    name_to_index_["low_quality"] = 12;
-    index_to_name_[12] = "low_quality";
-    index_to_description_[12] = "Flag which indicates that some entity has a low quality (e.g. a feature pair)";
-    index_to_unit_[12] = "";
-
-    name_to_index_["charge"] = 13;
-    index_to_name_[13] = "charge";
-    index_to_description_[13] = "Charge of a feature or peak";
-    index_to_unit_[13] = "";
-  }
-
-  MetaInfoRegistry::MetaInfoRegistry(const MetaInfoRegistry& rhs)
-  {
-    *this = rhs;
-  }
-
-  MetaInfoRegistry::~MetaInfoRegistry()
-  {
-  }
-
-  MetaInfoRegistry& MetaInfoRegistry::operator=(const MetaInfoRegistry& rhs)
-  {
-    if (this == &rhs) return *this;
-
-#pragma omp critical (MetaInfoRegistry)
+    MetaInfoRegistry::MetaInfoRegistry() :
+            next_index_(1024), name_to_index_(), index_to_name_(), index_to_description_(), index_to_unit_()
     {
-      next_index_ = rhs.next_index_;
-      name_to_index_ = rhs.name_to_index_;
-      index_to_name_ = rhs.index_to_name_;
+      insert(name_to_index_, String("isotopic_range"), UInt(1));
+      insert(index_to_name_, UInt(1), String("isotopic_range"));
+      insert(index_to_description_, UInt(1), String("consecutive numbering of the peaks in an isotope pattern. 0 is the monoisotopic peak"));
+      insert(index_to_unit_, UInt(1), String(""));
+
+      insert(name_to_index_, String("cluster_id"), UInt(2));
+      insert(index_to_name_, UInt(2), String("cluster_id"));
+      insert(index_to_description_, UInt(2), String("consecutive numbering of isotope clusters in a spectrum"));
+      insert(index_to_unit_, UInt(2),String(""));
+
+      insert(name_to_index_, String("label"), UInt(3));
+      insert(index_to_name_, UInt(3), String("label"));
+      insert(index_to_description_, UInt(3), String("label e.g. shown in visialization"));
+      insert(index_to_unit_, UInt(3), String(""));
+
+      insert(name_to_index_, String("icon"), UInt(4));
+      insert(index_to_name_, UInt(4), String("icon"));
+      insert(index_to_description_, UInt(4), String("icon shown in visialization"));
+      insert(index_to_unit_, UInt(4), String(""));
+
+      insert(name_to_index_, String("color"), UInt(5));
+      insert(index_to_name_, UInt(5), String("color"));
+      insert(index_to_description_, UInt(5), String("color used for visialization e.g. #FF00FF for purple"));
+      insert(index_to_unit_, UInt(5), String(""));
+
+      insert(name_to_index_, String("RT"), UInt(6));
+      insert(index_to_name_, UInt(6), String("RT"));
+      insert(index_to_description_, UInt(6), String("the retention time of an identification"));
+      insert(index_to_unit_, UInt(6), String(""));
+
+      insert(name_to_index_, String("MZ"), UInt(7));
+      insert(index_to_name_, UInt(7), String("MZ"));
+      insert(index_to_description_, UInt(7), String("the MZ of an identification"));
+      insert(index_to_unit_, UInt(7), String(""));
+
+      insert(name_to_index_, String("predicted_RT"), UInt(8));
+      insert(index_to_name_, UInt(8), String("predicted_RT"));
+      insert(index_to_description_, UInt(8), String("the predicted retention time of a peptide hit"));
+      insert(index_to_unit_, UInt(8), String(""));
+
+      insert(name_to_index_, String("predicted_RT_p_value"), UInt(9));
+      insert(index_to_name_, UInt(9), String("predicted_RT_p_value"));
+      insert(index_to_description_, UInt(9), String("the predicted RT p-value of a peptide hit"));
+      insert(index_to_unit_, UInt(9), String(""));
+
+      insert(name_to_index_, String("spectrum_reference"), UInt(10));
+      insert(index_to_name_, UInt(10), String("spectrum_reference"));
+      insert(index_to_description_, UInt(10), String("Refenference to a spectrum or feature number"));
+      insert(index_to_unit_, UInt(10), String(""));
+
+      insert(name_to_index_, String("ID"), UInt(11));
+      insert(index_to_name_, UInt(11), String("ID"));
+      insert(index_to_description_, UInt(11), String("Some type of identifier"));
+      insert(index_to_unit_, UInt(11), String(""));
+
+      insert(name_to_index_, String("low_quality"), UInt(12));
+      insert(index_to_name_, UInt(12), String("low_quality"));
+      insert(index_to_description_, UInt(12), String("Flag which indicatest that some entity has a low quality (e.g. a feature pair)"));
+      insert(index_to_unit_, UInt(12), String(""));
+
+      insert(name_to_index_, String("charge"), UInt(13));
+      insert(index_to_name_, UInt(13), String("charge"));
+      insert(index_to_description_, UInt(13), String("Charge of a feature or peak"));
+      insert(index_to_unit_, UInt(13), String(""));
+    }
+
+    MetaInfoRegistry::MetaInfoRegistry(const MetaInfoRegistry& rhs)
+    {
+      *this = rhs;
+    }
+
+    MetaInfoRegistry::~MetaInfoRegistry()
+    {
+    }
+
+    MetaInfoRegistry& MetaInfoRegistry::operator=(const MetaInfoRegistry& rhs)
+    {
+      if (this == &rhs) return *this;
       index_to_description_ = rhs.index_to_description_;
       index_to_unit_ = rhs.index_to_unit_;
+      index_to_name_ = rhs.index_to_name_;
+      name_to_index_ = rhs.name_to_index_;
+      next_index_.store(rhs.next_index_);
+      return *this;
     }
-    return *this;
-  }
 
-  UInt MetaInfoRegistry::registerName(const String& name, const String& description, const String& unit)
-  {
-    UInt rv;
-#pragma omp critical (MetaInfoRegistry)
+    UInt MetaInfoRegistry::registerName(const String& name, const String& description, const String& unit)
     {
-      map<String, UInt>::iterator it = name_to_index_.find(name);
-      if (it == name_to_index_.end())
+      UInt rv;
+      if (!find(name_to_index_, name, rv))
       {
-        name_to_index_[name] = next_index_;
-        index_to_name_[next_index_] = name;
-        index_to_description_[next_index_] = description;
-        index_to_unit_[next_index_] = unit;
         rv = next_index_++;
+        insert(name_to_index_, name, rv);
+        insert(index_to_name_, rv, name);
+        insert(index_to_description_, rv, description);
+        insert(index_to_unit_, rv, unit);
       }
-      else
-      {
-        rv = it->second;
-      }
+      return rv;
     }
-    return rv;
-  }
 
-  void MetaInfoRegistry::setDescription(UInt index, const String& description)
-  {
-    map<UInt, String>::iterator pos;
-#pragma omp critical (MetaInfoRegistry)
+    void MetaInfoRegistry::setDescription(UInt index, const String& description)
     {
-      pos = index_to_description_.find(index);
-      if (pos != index_to_description_.end())
-      {
-        pos->second = description;
-      }
-      else
+      if (!insert_if_exist(index_to_description_, index, description))
       {
         throw Exception::InvalidValue(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, "Unregistered index!", String(index));
       }
     }
-  }
 
-  void MetaInfoRegistry::setDescription(const String& name, const String& description)
-  {
-    map<String, UInt>::iterator pos;
-#pragma omp critical (MetaInfoRegistry)
+    void MetaInfoRegistry::setDescription(const String& name, const String& description)
     {
-      pos = name_to_index_.find(name);
-      if (pos != name_to_index_.end())
-      {
-        index_to_description_[pos->second] = description;
-      }
-      else
+      UInt id;
+      if (!find(name_to_index_, name, id))
       {
         throw Exception::InvalidValue(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, "Unregistered name!", name);
       }
+      insert(index_to_description_, id, description);
     }
-  }
 
-  void MetaInfoRegistry::setUnit(UInt index, const String& unit)
-  {
-    map<UInt, String>::iterator pos;
-#pragma omp critical (MetaInfoRegistry)
+    void MetaInfoRegistry::setUnit(UInt index, const String& unit)
     {
-      pos = index_to_unit_.find(index);
-      if (pos != index_to_unit_.end())
-      {
-        pos->second = unit;
-      }
-      else
+      if (!insert_if_exist(index_to_unit_, index, unit))
       {
         throw Exception::InvalidValue(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, "Unregistered index!", String(index));
       }
     }
-  }
 
-  void MetaInfoRegistry::setUnit(const String& name, const String& unit)
-  {
-    map<String, UInt>::iterator pos;
-#pragma omp critical (MetaInfoRegistry)
+    void MetaInfoRegistry::setUnit(const String& name, const String& unit)
     {
-      pos = name_to_index_.find(name);
-      if (pos != name_to_index_.end())
-      {
-        index_to_unit_[pos->second] = unit;
-      }
-      else
+      UInt id;
+      if (!find(name_to_index_, name, id))
       {
         throw Exception::InvalidValue(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, "Unregistered name!", name);
       }
+      insert(index_to_unit_, id, unit);
     }
-  }
 
-  UInt MetaInfoRegistry::getIndex(const String& name) const
-  {
-    UInt rv = UInt(-1);
-#pragma omp critical (MetaInfoRegistry)
+    UInt MetaInfoRegistry::getIndex(const String& name) const
     {
-      map<String, UInt>::const_iterator it = name_to_index_.find(name);
-      if (it != name_to_index_.end())
-      {
-        rv = it->second;
-      }
+      UInt id = UInt(-1);
+      find(name_to_index_, name, id);
+      return id;
     }
-    return rv;
-  }
 
-  String MetaInfoRegistry::getDescription(UInt index) const
-  {
-    String result;
-#pragma omp critical (MetaInfoRegistry)
+    String MetaInfoRegistry::getDescription(UInt index) const
     {
-      map<UInt, String>::const_iterator it = index_to_description_.find(index);
-      if (it == index_to_description_.end())
+      String result;
+      if (!find(index_to_description_, index, result))
       {
         throw Exception::InvalidValue(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, "Unregistered index!", String(index));
       }
-      result = it->second;
+      return result;
     }
-    return result;
-  }
 
-  String MetaInfoRegistry::getDescription(const String& name) const
-  {
-    String rv;
-    UInt index = getIndex(name); // this has to be outside the OpenMP "critical" block!
-    if (index == UInt(-1)) // not found
+    String MetaInfoRegistry::getDescription(const String& name) const
     {
-      throw Exception::InvalidValue(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, "Unregistered Name!", name);
-    }
-    else
-    {
-#pragma omp critical (MetaInfoRegistry)
+      String rv;
+      UInt id = getIndex(name);
+      if (id == UInt(-1)) // not found
       {
-        rv = (index_to_description_.find(index))->second;
-      }
-    }
-    return rv;
-  }
-
-  String MetaInfoRegistry::getUnit(UInt index) const
-  {
-    String result;
-#pragma omp critical (MetaInfoRegistry)
-    {
-      map<UInt, String>::const_iterator it = index_to_unit_.find(index);
-      if (it == index_to_unit_.end())
-      {
-        throw Exception::InvalidValue(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, "Unregistered index!", String(index));
-      }
-      result = it->second;
-    }
-    return result;
-  }
-
-  String MetaInfoRegistry::getUnit(const String& name) const
-  {
-    String rv;
-    UInt index = getIndex(name); // this has to be outside the OpenMP "critical" block!
-    if (index == UInt(-1)) // not found
-    {
-      throw Exception::InvalidValue(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, "Unregistered Name!", name);
-    }
-    else
-    {
-#pragma omp critical (MetaInfoRegistry)
-      {
-        rv = (index_to_unit_.find(index))->second;
-      }
-    }
-    return rv;
-  }
-
-  String MetaInfoRegistry::getName(UInt index) const
-  {
-    String rv;
-#pragma omp critical (MetaInfoRegistry)
-    {
-      map<UInt, String>::const_iterator it = index_to_name_.find(index);
-      if (it != index_to_name_.end())
-      {
-        rv = it->second;
+        throw Exception::InvalidValue(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, "Unregistered Name!", name);
       }
       else
       {
+        find(index_to_description_, id, rv);
+      }
+      return rv;
+    }
+
+    String MetaInfoRegistry::getUnit(UInt index) const
+    {
+      String result;
+      if (!find(index_to_unit_, index, result))
+      {
         throw Exception::InvalidValue(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, "Unregistered index!", String(index));
       }
+      return result;
     }
-    return rv;
-  }
 
+    String MetaInfoRegistry::getUnit(const String& name) const
+    {
+      String rv;
+      UInt id = getIndex(name);
+      if (id == UInt(-1)) // not found
+      {
+        throw Exception::InvalidValue(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, "Unregistered Name!", name);
+      }
+      else
+      {
+        find(index_to_unit_, id, rv);
+      }
+      return rv;
+    }
+
+    String MetaInfoRegistry::getName(UInt index) const
+    {
+      String rv;
+      if (!find(index_to_name_, index, rv))
+      {
+        throw Exception::InvalidValue(__FILE__, __LINE__, OPENMS_PRETTY_FUNCTION, "Unregistered index!", String(index));
+      }
+      return rv;
+    }
 } //namespace

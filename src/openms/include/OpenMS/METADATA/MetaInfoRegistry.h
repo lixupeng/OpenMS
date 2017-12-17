@@ -2,7 +2,7 @@
 //                   OpenMS -- Open-Source Mass Spectrometry
 // --------------------------------------------------------------------------
 // Copyright The OpenMS Team -- Eberhard Karls University Tuebingen,
-// ETH Zurich, and Freie Universitaet Berlin 2002-2017.
+// ETH Zurich, and Freie Universitaet Berlin 2002-2016.
 //
 // This software is released under a three-clause BSD license:
 //  * Redistributions of source code must retain the above copyright
@@ -41,6 +41,11 @@
 #include <OpenMS/CONCEPT/Exception.h>
 #include <OpenMS/CONCEPT/Types.h>
 #include <OpenMS/DATASTRUCTURES/String.h>
+
+#include <atomic>
+#include <boost/functional/hash.hpp>
+#include <tbb/concurrent_hash_map.h>
+#include <tbb/blocked_range.h>
 
 #ifdef OPENMS_COMPILER_MSVC
 #pragma warning( push )
@@ -160,17 +165,58 @@ public:
     String getUnit(const String& name) const;
 
 private:
+    template<typename K>
+    struct Compare {
+      static size_t hash(const K& key) { return boost::hash_value(key); }
+      static bool equal(const K& key1, const K& key2) { return (key1 == key2); }
+    };
+    typedef tbb::concurrent_hash_map<String, UInt, Compare<String>, tbb::tbb_allocator<std::pair<String,UInt>>> StringMap;
+    typedef tbb::concurrent_hash_map<UInt, String, Compare<UInt>, tbb::tbb_allocator<std::pair<UInt,String>>> UIntMap;
     /// internal counter, that stores the next index to assign
-    UInt next_index_;
+    mutable std::atomic_uint next_index_;
     /// map from name to index
-    std::map<String, UInt> name_to_index_;
+    mutable StringMap name_to_index_;
     /// map from index to name
-    std::map<UInt, String> index_to_name_;
+    mutable UIntMap index_to_name_;
     /// map from index to description
-    std::map<UInt, String> index_to_description_;
+    mutable UIntMap index_to_description_;
     /// map from index to unit
-    std::map<UInt, String> index_to_unit_;
+    mutable UIntMap index_to_unit_;
 
+    template<typename K, typename V, typename C, typename A>
+    void insert(tbb::concurrent_hash_map<K,V,C,A> &map, const K &key, const V val)
+    {
+      typedef typename tbb::concurrent_hash_map<K,V,C,A>::accessor accessor;
+      accessor ac;
+      map.insert(ac, key);
+      ac->second = val;
+    }
+
+    template<typename K, typename V, typename C, typename A>
+    bool insert_if_exist(tbb::concurrent_hash_map<K,V,C,A> &map, const K &key, const V &val)
+    {
+      typedef typename tbb::concurrent_hash_map<K,V,C,A>::accessor accessor;
+      accessor ac;
+      if (map.find(ac, key))
+      {
+        ac->second = val;
+        return true;
+      }
+      return false;
+    }
+
+    template<typename K, typename V, typename C, typename A>
+    bool find(tbb::concurrent_hash_map<K,V,C,A> &map, const K &key, V &val) const
+    {
+      typedef typename tbb::concurrent_hash_map<K,V,C,A>::const_accessor const_accessor;
+      const_accessor ac;
+      if (map.find(ac, key))
+      {
+        val = ac->second;
+        return true;
+      }
+      return false;
+    }
   };
 
 } // namespace OpenMS

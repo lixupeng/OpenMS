@@ -74,6 +74,11 @@
 #include <assert.h>
 #include <limits>
 
+#include <boost/thread/condition_variable.hpp>
+#include <boost/thread/mutex.hpp>
+#include <boost/thread/lock_types.hpp>
+#include <boost/thread.hpp>
+
 // #define OPENSWATH_WORKFLOW_DEBUG
 
 using namespace OpenMS;
@@ -672,6 +677,55 @@ protected:
     return trafo_rtnorm;
   }
 
+  void loadTransitions(OpenSwath::LightTargetedExperiment &transition_exp,
+                       String &tr_file,
+                       FileTypes::Type tr_type)
+  {
+    ///////////////////////////////////
+    // Load the transitions
+    ///////////////////////////////////
+    ProgressLogger progresslogger;
+    progresslogger.setLogType(log_type_);
+    if (tr_type == FileTypes::TRAML || tr_file.suffix(5).toLower() == "traml"  )
+    {
+      progresslogger.startProgress(0, 1, "Load TraML file");
+      TargetedExperiment targeted_exp;
+      TraMLFile().load(tr_file, targeted_exp);
+      OpenSwathDataAccessHelper::convertTargetedExp(targeted_exp, transition_exp);
+      progresslogger.endProgress();
+    }
+    else if (tr_type == FileTypes::PQP || tr_file.suffix(3).toLower() == "pqp"  )
+    {
+      progresslogger.startProgress(0, 1, "Load PQP file");
+      TransitionPQPReader().convertPQPToTargetedExperiment(tr_file.c_str(), transition_exp);
+      progresslogger.endProgress();
+
+      remove(out_osw.c_str());
+      if (!out_osw.empty())
+      {
+        std::ifstream  src(tr_file.c_str(), std::ios::binary);
+        std::ofstream  dst(out_osw.c_str(), std::ios::binary);
+
+        dst << src.rdbuf();
+      }
+    }
+    else if (tr_type == FileTypes::TSV || tr_file.suffix(3).toLower() == "tsv"  )
+    {
+      progresslogger.startProgress(0, 1, "Load TSV file");
+      TransitionTSVReader tsv_reader;
+      tsv_reader.setParameters(tsv_reader_param);
+      tsv_reader.convertTSVToTargetedExperiment(tr_file.c_str(), tr_type, transition_exp);
+      progresslogger.endProgress();
+    }
+    else
+    {
+      LOG_ERROR << "Provide valid TraML, TSV or PQP transition file." << std::endl;
+      return;// TODO: PARSE_ERROR;
+    }
+    LOG_INFO << "Loaded " << transition_exp.getProteins().size() << " proteins, " <<
+             transition_exp.getCompounds().size() << " compounds with " << transition_exp.getTransitions().size() << " transitions." << std::endl;
+  }
+
   ExitCodes main_(int, const char **)
   {
     ///////////////////////////////////
@@ -821,50 +875,11 @@ protected:
     }
 
     ///////////////////////////////////
-    // Load the transitions
+    // Start Loading the transitions
     ///////////////////////////////////
     OpenSwath::LightTargetedExperiment transition_exp;
-    ProgressLogger progresslogger;
-    progresslogger.setLogType(log_type_);
-    if (tr_type == FileTypes::TRAML || tr_file.suffix(5).toLower() == "traml"  )
-    {
-      progresslogger.startProgress(0, 1, "Load TraML file");
-      TargetedExperiment targeted_exp;
-      TraMLFile().load(tr_file, targeted_exp);
-      OpenSwathDataAccessHelper::convertTargetedExp(targeted_exp, transition_exp);
-      progresslogger.endProgress();
-    }
-    else if (tr_type == FileTypes::PQP || tr_file.suffix(3).toLower() == "pqp"  )
-    {
-      progresslogger.startProgress(0, 1, "Load PQP file");
-      TransitionPQPReader().convertPQPToTargetedExperiment(tr_file.c_str(), transition_exp);
-      progresslogger.endProgress();
-
-      remove(out_osw.c_str());
-      if (!out_osw.empty())
-      {
-        std::ifstream  src(tr_file.c_str(), std::ios::binary);
-        std::ofstream  dst(out_osw.c_str(), std::ios::binary);
-
-        dst << src.rdbuf();
-      }
-    }
-    else if (tr_type == FileTypes::TSV || tr_file.suffix(3).toLower() == "tsv"  )
-    {
-      progresslogger.startProgress(0, 1, "Load TSV file");
-      TransitionTSVReader tsv_reader;
-      tsv_reader.setParameters(tsv_reader_param);
-      tsv_reader.convertTSVToTargetedExperiment(tr_file.c_str(), tr_type, transition_exp);
-      progresslogger.endProgress();
-    }
-    else
-    {
-      LOG_ERROR << "Provide valid TraML, TSV or PQP transition file." << std::endl;
-      return PARSE_ERROR;
-    }
-    LOG_INFO << "Loaded " << transition_exp.getProteins().size() << " proteins, " << 
-      transition_exp.getCompounds().size() << " compounds with " << transition_exp.getTransitions().size() << " transitions." << std::endl;
-
+    boost::thread load_transitions(boost::bind(&TOPPOpenSwathWorkflow::loadTransitions, this,
+                                               transition_exp, tr_file, tr_type));
 
     ///////////////////////////////////
     // Load the SWATH files
@@ -942,6 +957,11 @@ protected:
         irt_tr_file, swath_maps, min_rsq, min_coverage, feature_finder_param,
         cp_irt, irt_detection_param, mz_correction_function, debug_level,
         sonar, load_into_memory, debug_output);
+
+    ///////////////////////////////////
+    // Wait for transitions loading finished
+    ///////////////////////////////////
+    load_transitions.join();
 
     ///////////////////////////////////
     // Set up chromatogram output
