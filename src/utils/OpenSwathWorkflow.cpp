@@ -881,7 +881,7 @@ protected:
     ///////////////////////////////////
     OpenSwath::LightTargetedExperiment transition_exp;
     boost::thread load_transitions(boost::bind(&TOPPOpenSwathWorkflow::loadTransitions, this,
-                                               transition_exp, tr_file, tr_type, out_osw, tsv_reader_param));
+                                               boost::ref(transition_exp), tr_file, tr_type, out_osw, boost::ref(tsv_reader_param)));
 
     ///////////////////////////////////
     // Load the SWATH files
