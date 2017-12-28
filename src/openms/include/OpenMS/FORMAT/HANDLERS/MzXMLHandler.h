@@ -40,7 +40,6 @@
 #include <OpenMS/FORMAT/Base64.h>
 #include <OpenMS/FORMAT/OPTIONS/PeakFileOptions.h>
 #include <OpenMS/FORMAT/HANDLERS/XMLHandler.h>
-#include <OpenMS/FORMAT/HANDLERS/MzXMLHandlerHelper.h>
 #include <OpenMS/DATASTRUCTURES/String.h>
 #include <OpenMS/KERNEL/MSExperiment.h>
 #include <OpenMS/INTERFACES/IMSDataConsumer.h>
@@ -147,8 +146,8 @@ protected:
         bool skip_data;
       };
 
-      /// being parsed spectrum data
-      SpectrumData spectrum_data_;
+      /// Vector of spectrum data stored for later parallel processing
+      std::vector< SpectrumData > spectrum_data_;
       //@}
 
       /// Flag that indicates whether this spectrum should be skipped (due to options)
@@ -181,26 +180,17 @@ protected:
       */
       void doPopulateSpectraWithData_(SpectrumData & spectrum_data);
 
-      /// data processing auxiliary variable
-      std::vector< boost::shared_ptr< DataProcessing> > data_processing_;
-
       /**
       @brief Populate all spectra on the stack with data from input
 
       Will populate all spectra on the current work stack with data (using
       multiple threads if available) and append them to the result.
-
-      Using producer-consumer parallel model
       */
-      boost::thread *decoder_p, *consumer_p;
-      SafeQueue<SpectrumData> spec_queue;
-      SafeQueue<SpectrumType> consume_queue;
-      int thread_count;
-      long spec_count;
-      bool finish;
+      void populateSpectraWithData_();
 
-      void decoder_thread();
-      void consumer_thread();
+      /// data processing auxiliary variable
+      std::vector< boost::shared_ptr< DataProcessing> > data_processing_;
+
 
 private:
       /// Not implemented
